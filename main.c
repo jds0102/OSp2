@@ -17,7 +17,10 @@ how to use the page table and disk interfaces.
 
 void page_fault_handler( struct page_table *pt, int page )
 {
-	page_table_set_entry(pt,page,page,PROT_READ|PROT_WRITE);
+  
+
+    page_table_set_entry(pt,page,page,PROT_READ|PROT_WRITE);
+    //HEHEHEHE
 }
 
 int main( int argc, char *argv[] )
