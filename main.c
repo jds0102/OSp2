@@ -1,4 +1,6 @@
+
 /*
+
 Main program for the virtual memory project.
 Make all of your modifications to this file.
 You may add or rearrange any code or data as you need.
@@ -86,7 +88,6 @@ int main( int argc, char *argv[] )
 		fprintf(stderr,"couldn't create virtual disk: %s\n",strerror(errno));
 		return 1;
 	}
-
 
 	struct page_table *pt = page_table_create( npages, nframes, page_fault_handler );
 	if(!pt) {
