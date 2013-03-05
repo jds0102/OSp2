@@ -74,6 +74,7 @@ int main( int argc, char *argv[] )
 		return 1;
 	}
 
+
 	npages = atoi(argv[1]);
 	nframes = atoi(argv[2]);
 	const char *program = argv[4];
