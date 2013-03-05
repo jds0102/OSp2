@@ -24,6 +24,9 @@ int npages;
 char *physmem;
 char *virtmem;
 char *method;
+int *queue, *secondChanceQueue;
+int queueHead = 0, secondChanceHead = 0;
+int secondFifoSize;
 
 void replace_random (struct page_table *pt, int page)
 {
@@ -49,6 +52,24 @@ void replace_random (struct page_table *pt, int page)
   }
   
 }
+
+void replace_fifo(struct page_table *pt, int page) {
+  int frameReturned;
+  int bitsReturned;
+  page_table_get_entry(pt, queue[queueHead], &frameReturned, &bitsReturned);
+  disk_write(disk, queue[queueHead], &physmem[frameReturned*PAGE_SIZE]);
+  disk_read(disk, page, &physmem[frameReturned*PAGE_SIZE]);
+  page_table_set_entry(pt, page, frameReturned, PROT_READ);
+  page_table_set_entry(pt, queue[queueHead], 0, 0);
+  queue[queueHead] = page;
+  queueHead ++;
+  queueHead %= nframes;
+}
+
+void replace_2fifo(struct page_table *pt, int page) {
+  
+}
+
 void page_fault_handler( struct page_table *pt, int page )
 {
   int frameReturned;
@@ -58,15 +79,20 @@ void page_fault_handler( struct page_table *pt, int page )
     page_table_set_entry(pt,page,frameReturned,PROT_READ|PROT_WRITE);
   }else if (framesLeft > 0){
     framesLeft--;
+    if (strcmp(method, "fifo") == 0 || strcmp(method, "2fifo") == 0) {
+     queue[nframes-framesLeft-1] = page; 
+    }
     page_table_set_entry(pt,page,framesLeft,PROT_READ);
     disk_read(disk, page, &physmem[framesLeft*PAGE_SIZE]);
   }else{
       if (strcmp("rand", method) == 0){
 	replace_random(pt, page);	
+      } else if (strcmp(method, "fifo") == 0) {
+	replace_fifo(pt, page);
+      } else if (strcmp(method, "2fifo") == 0) {
+	replace_2fifo(pt, page);
       }
   }
-  
-  
 }
 
 int main( int argc, char *argv[] )
@@ -83,6 +109,19 @@ int main( int argc, char *argv[] )
 	method = argv[3];
 	framesLeft = atoi(argv[2]);
 
+	if (strcmp(method, "fifo") == 0) {
+	  queue = malloc(nframes*sizeof(int));
+        } else if(strcmp(method, "2fifo") == 0) {
+	  secondFifoSize = (int)(nframes*0.25);
+	  framesLeft -= secondFifoSize;
+	  queue = malloc(framesLeft*sizeof(int));
+	  secondChanceQueue = malloc(secondFifoSize*sizeof(int));
+	}
+	
+	if (framesLeft > npages) {
+	  framesLeft = npages;
+	}
+      
 	disk = disk_open("myvirtualdisk",npages);
 	if(!disk) {
 		fprintf(stderr,"couldn't create virtual disk: %s\n",strerror(errno));
