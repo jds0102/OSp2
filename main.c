@@ -19,7 +19,7 @@ how to use the page table and disk interfaces.
 
 struct disk *disk;
 int framesLeft;
-int nframes;
+int nframes, secondChanceFramesLeft;
 int npages;
 char *physmem;
 char *virtmem;
@@ -66,8 +66,67 @@ void replace_fifo(struct page_table *pt, int page) {
   queueHead %= nframes;
 }
 
-void replace_2fifo(struct page_table *pt, int page) {
-  
+void replace_2fifo(struct page_table *pt, int page) {  
+  //if the page is in the second chance queue
+  int secondChanceIter = 0;
+  int frameReturned;
+  int bitsReturned;
+  while (secondChanceIter < secondFifoSize){
+    if (page == secondChanceQueue[secondChanceIter]){
+	// Move page into first queue - then update page table
+	int tmpPage = queue[queueHead];
+	queue[queueHead] = page;
+	page_table_get_entry(pt, page, &frameReturned, &bitsReturned);
+	page_table_set_entry(pt, page, frameReturned, PROT_READ);
+	queueHead++;
+	queueHead %= (nframes - secondFifoSize);
+	//Setting the spot of the previous page that was replaced to empty
+	secondChanceQueue[secondChanceIter] = -1;
+	secondChanceIter = secondChanceHead;
+	int nextItem;
+	int queueCompressed = 0;
+	while (!queueCompressed){
+	  if (secondChanceQueue[secondChanceIter] == -1){
+	    nextItem = secondChanceIter + 1;
+	    nextItem %= secondFifoSize;
+	    secondChanceQueue[secondChanceIter] = secondChanceQueue[nextItem];
+	    secondChanceQueue[nextItem] = -1; 
+	  }
+	  secondChanceIter++;
+	  if (secondChanceIter == (secondChanceHead - 1) % secondFifoSize){
+	    secondChanceQueue[secondChanceIter] = tmpPage;
+	    page_table_get_entry(pt, tmpPage, &frameReturned, &bitsReturned);
+	    page_table_set_entry(pt, tmpPage, frameReturned, 0);
+	    queueCompressed = 1;
+	  }
+	}
+	return;
+    }
+    
+    secondChanceIter++;
+  }
+  //if the page is not in the second chance queue
+  int tempPage = queue[queueHead];
+  queue[queueHead] = page;
+  queueHead ++;
+  queueHead %= (nframes - secondFifoSize);
+  int secondTempPage = secondChanceQueue[secondChanceHead];
+  secondChanceQueue[secondChanceHead] = tempPage;
+  secondChanceHead ++;
+  secondChanceHead %= secondFifoSize;
+  page_table_get_entry(pt, tempPage, &frameReturned, &bitsReturned);
+  page_table_set_entry(pt, tempPage, frameReturned, 0);
+  if (secondChanceFramesLeft > 0){
+    secondChanceFramesLeft--;
+    page_table_set_entry(pt, page, secondChanceFramesLeft, PROT_READ);
+    disk_read(disk, page, &physmem[secondChanceFramesLeft*PAGE_SIZE]);
+  }else{
+    page_table_get_entry(pt, secondTempPage, &frameReturned, &bitsReturned);
+    disk_write(disk, secondTempPage, &physmem[frameReturned*PAGE_SIZE]);
+    disk_read(disk, page, &physmem[frameReturned*PAGE_SIZE]);
+    page_table_set_entry(pt, page, frameReturned, PROT_READ);
+    page_table_set_entry(pt, secondTempPage, 0, 0);
+  }
 }
 
 void page_fault_handler( struct page_table *pt, int page )
@@ -112,10 +171,15 @@ int main( int argc, char *argv[] )
 	if (strcmp(method, "fifo") == 0) {
 	  queue = malloc(nframes*sizeof(int));
         } else if(strcmp(method, "2fifo") == 0) {
-	  secondFifoSize = (int)(nframes*0.25);
+	  secondChanceFramesLeft = secondFifoSize = (int)(nframes*0.25);
 	  framesLeft -= secondFifoSize;
 	  queue = malloc(framesLeft*sizeof(int));
 	  secondChanceQueue = malloc(secondFifoSize*sizeof(int));
+	  int iter = 0;
+	  while (iter < secondFifoSize){
+	    secondChanceQueue[iter] = -1;
+	    iter++;
+	  }
 	}
 	
 	if (framesLeft > npages) {
