@@ -41,8 +41,8 @@ void replace_random (struct page_table *pt, int page)
 	if(randNumPages == 0){
 	  disk_write(disk, i, &physmem[frameReturned*PAGE_SIZE]);
 	  disk_read(disk, page, &physmem[frameReturned*PAGE_SIZE]);
-	  page_table_set_entry(pt, page, frameReturned, PROT_READ);
 	  page_table_set_entry(pt, i, 0, 0);
+	  page_table_set_entry(pt, page, frameReturned, PROT_READ);
 	  i = npages;
 	}else{
 	  randNumPages--;
@@ -59,8 +59,8 @@ void replace_fifo(struct page_table *pt, int page) {
   page_table_get_entry(pt, queue[queueHead], &frameReturned, &bitsReturned);
   disk_write(disk, queue[queueHead], &physmem[frameReturned*PAGE_SIZE]);
   disk_read(disk, page, &physmem[frameReturned*PAGE_SIZE]);
-  page_table_set_entry(pt, page, frameReturned, PROT_READ);
   page_table_set_entry(pt, queue[queueHead], 0, 0);
+  page_table_set_entry(pt, page, frameReturned, PROT_READ);
   queue[queueHead] = page;
   queueHead ++;
   queueHead %= nframes;
@@ -93,7 +93,14 @@ void replace_2fifo(struct page_table *pt, int page) {
 	    secondChanceQueue[nextItem] = -1; 
 	  }
 	  secondChanceIter++;
-	  if (secondChanceIter == (secondChanceHead - 1) % secondFifoSize){
+	  // Changed this because secondChanceIter was running off end
+	  secondChanceIter %= secondFifoSize;
+	  int tmpHead;
+	  tmpHead = (secondChanceHead - 1) % secondFifoSize;
+	  if (tmpHead < 0){
+	    tmpHead = tmpHead * -1;
+	  }
+	  if (secondChanceIter == tmpHead){
 	    secondChanceQueue[secondChanceIter] = tmpPage;
 	    page_table_get_entry(pt, tmpPage, &frameReturned, &bitsReturned);
 	    page_table_set_entry(pt, tmpPage, frameReturned, 0);
@@ -124,8 +131,8 @@ void replace_2fifo(struct page_table *pt, int page) {
     page_table_get_entry(pt, secondTempPage, &frameReturned, &bitsReturned);
     disk_write(disk, secondTempPage, &physmem[frameReturned*PAGE_SIZE]);
     disk_read(disk, page, &physmem[frameReturned*PAGE_SIZE]);
-    page_table_set_entry(pt, page, frameReturned, PROT_READ);
     page_table_set_entry(pt, secondTempPage, 0, 0);
+    page_table_set_entry(pt, page, frameReturned, PROT_READ);
   }
 }
 
@@ -138,8 +145,13 @@ void page_fault_handler( struct page_table *pt, int page )
     page_table_set_entry(pt,page,frameReturned,PROT_READ|PROT_WRITE);
   }else if (framesLeft > 0){
     framesLeft--;
-    if (strcmp(method, "fifo") == 0 || strcmp(method, "2fifo") == 0) {
+    // Insert into queue for fifo case
+    if (strcmp(method, "fifo") == 0 ) {
      queue[nframes-framesLeft-1] = page; 
+    // We were initializing the queue improperly - need to subtract
+    // secondFifoSize as well
+    }else if (strcmp(method, "2fifo") == 0){
+     queue[nframes - secondFifoSize - framesLeft - 1] = page; 
     }
     page_table_set_entry(pt,page,framesLeft,PROT_READ);
     disk_read(disk, page, &physmem[framesLeft*PAGE_SIZE]);
