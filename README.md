@@ -13,3 +13,7 @@ Aaron and Justin (3/4 11 Pm)
                  -Implemented FIFO
                  -FIxed the error when physical memory is larger than virtual
                  -Started implementing 2fif0, need to handle the complex cases still
+
+Aaron (3/6 7:45 pm)
+                 -Fixed 2FIFO
+                 -Fixed error with setting pages
