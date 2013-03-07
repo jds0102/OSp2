@@ -17,3 +17,6 @@ Aaron and Justin (3/4 11 Pm)
 Aaron (3/6 7:45 pm)
                  -Fixed 2FIFO
                  -Fixed error with setting pages
+                 
+                 -Now have error with 2FIFO for large numbers (ex. 100 and 100) in which the page_table is trying to get a
+                 -1 page entry
